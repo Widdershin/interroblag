@@ -1,3 +1,6 @@
+/* globals React */
+/* @flow */
+
 var Blog = React.createClass({
   propTypes: {
     posts: React.PropTypes.array

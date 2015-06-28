@@ -1,3 +1,6 @@
+/* globals React */
+/* @flow */
+
 var Post = React.createClass({
   propTypes: {
     post: React.PropTypes.shape({
