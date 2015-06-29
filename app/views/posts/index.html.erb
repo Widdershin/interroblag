@@ -1,2 +1,5 @@
-<%= react_component("Blog", {posts: Post.all}) %>
+<div id="blog"></div>
 
+<script type="text/javascript">
+  window.posts = <%= Post.all.to_json.html_safe %>; 
+</script>

@@ -1,7 +1,9 @@
-/* globals React */
+/* global Post */
 /* @flow */
 
-var Blog = React.createClass({
+var React = require('react');
+
+window.Blog = React.createClass({
   propTypes: {
     posts: React.PropTypes.array
   },
