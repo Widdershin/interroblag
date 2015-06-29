@@ -8,14 +8,16 @@ $(function () {
       height = 800,
       colors = d3.scale.category10();
 
-  var svg = d3.select('body')
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height);
-
   var zoom = d3.behavior.zoom()
     .scaleExtent([1, 10])
     .on("zoom", zoomed);
+
+  var svg = d3.select('body')
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .append('g')
+    .call(zoom);
 
   var drag = d3.behavior.drag()
       .origin(function(d) { return d; })
@@ -24,7 +26,7 @@ $(function () {
       .on("dragend", dragended);
 
   function zoomed() {
-    container.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+    svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
   }
 
   function dragstarted(d) {
@@ -276,7 +278,7 @@ $(function () {
     // because :active only works in WebKit?
     svg.classed('active', true);
 
-    if(d3.event.ctrlKey || mousedown_node || mousedown_link) return;
+    if(d3.event.ctrlKey) return;
 
     // insert new node at point
     var point = d3.mouse(this),
@@ -289,8 +291,6 @@ $(function () {
   }
 
   function mousemove() {
-    if(!mousedown_node) return;
-
     // update drag line
     drag_line.attr('d', 'M' + mousedown_node.x + ',' + mousedown_node.y + 'L' + d3.mouse(this)[0] + ',' + d3.mouse(this)[1]);
 
