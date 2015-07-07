@@ -1,6 +1,8 @@
 {
   "name": "interroblag",
   "dependencies": {
+    "@cycle/core": "^1.0.0",
+    "@cycle/web": "^1.0.3",
     "browserify": "~> 10.2.4",
     "browserify-incremental": "^3.0.1"
   },
