@@ -2,6 +2,12 @@
 const Cycle = require('@cycle/core');
 const {makeDOMDriver, h, svg} = require('@cycle/web');
 
+function log (thing) {
+  console.log(thing);
+
+  return thing;
+}
+
 function getValue (form, fieldClass) {
   return $(form).find(fieldClass).val();
 }
@@ -9,41 +15,79 @@ function getValue (form, fieldClass) {
 function createPost (ev) {
   return {
     title: getValue(ev.target, '.title'),
-    content: getValue(ev.target, '.content')
+    content: getValue(ev.target, '.content'),
+    dragged: false,
+    id: 1 // TODO - implement id
   };
 };
 
-function intent (DOM) {
-  return DOM.get('.create-post', 'submit').map(createPost);
+function getId (container) {
+  return $(container).closest('.post-container').find('.post').data('id');
 }
 
-function model (post$) {
-  return post$.startWith([]).scan((posts, post) => posts.concat([post]));
+function intent (DOM) {
+  return {
+    dragPost$: DOM.get('.post-container', 'mousedown').map(ev => getId(ev.target)),
+    releaseDrag$: DOM.get('.app', 'mouseup').map(ev => null),
+
+    post$: DOM.get('.create-post', 'submit').map(createPost)
+  };
+}
+
+function model ({dragPost$, releaseDrag$, post$}) {
+  const draggedPost$ = Cycle.Rx.Observable.merge(
+    dragPost$,
+    releaseDrag$
+  ).startWith(null);
+
+  const currentPost$ = post$
+    .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false}])
+    .scan((posts, post) => posts.concat([post]))
+
+  return Cycle.Rx.Observable.combineLatest(
+    draggedPost$,
+    currentPost$,
+    (draggedPost, currentPosts) => {
+      return currentPosts.map(post => {
+        if (draggedPost === post.id) {
+          return {
+            title: post.title,
+            content: post.content,
+            id: post.id,
+            dragged: true
+          }
+        };
+
+        return Object.assign(post, {dragged: false});
+      });
+    }
+  );
 }
 
 function renderCreatePostForm () {
   return (
     h('form.create-post', {action: '#'}, [
-     'Create new post',
-     h('input.title'),
-     h('textarea.content', {type: 'textarea'}),
-     h('input', {type: 'submit'})
-   ])
+      'Create new post',
+      h('input.title'),
+      h('textarea.content', {type: 'textarea'}),
+      h('input', {type: 'submit'})
+    ])
   );
 }
 
 function renderPost (post) {
   return (
-    h('div.post', [
-     h('h3.title', post.title),
-     h('p.content', post.content)
-   ])
+    h('div.post', {attributes: {'data-id': post.id}}, [
+      h('h3.title', post.title),
+      h('p.content', post.content),
+      h('p', "Dragged " + post.dragged)
+    ])
   );
 }
 
 function renderSvgPost (post, width = 300, height = 200) {
   return (
-    svg('g.post-container', {x: 50, y: 10, width: 300, height: 200, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
+    svg('g', {'class': 'post-container draggable', x: 50, y: 10, width: 300, height: 200, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
       svg('rect', {width: 300, height: 200}),
       svg('foreignObject', {width: 300, height: 200}, [
         renderPost(post)
@@ -62,7 +106,7 @@ function renderBlogboard (posts) {
 
 function view (post$) {
   return post$.map(posts =>
-    h('div', [
+    h('div.app', [
       h('h3', 'Posts'),
       renderCreatePostForm(),
       renderBlogboard(posts)
