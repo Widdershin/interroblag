@@ -10,34 +10,36 @@ function createPost (ev) {
   return {
     title: ev.target[0].value,
     content: ev.target[1].value
-  }
+  };
 };
 
 function intent (DOM) {
   return {
-    post$: DOM.get('.create-post', 'submit')
-      .startWith({title: 'test', content: 'hello world'})
-      .map(createPost)
+    post$: DOM.get('.create-post', 'submit').map(createPost)
   };
 }
 
 function model ({post$}) {
-  return post$;
+  return post$.startWith([]).scan((posts, post) => posts.concat([post]));
 }
 
 function createPostForm () {
-  return h('form.create-post', {action: '#'}, [
-           'Create new post',
-           h('input'),
-           h('textarea', {type: 'textarea'}),
-           h('input', {type: 'submit'})
-         ])
+  return (
+    h('form.create-post', {action: '#'}, [
+     'Create new post',
+     h('input'),
+     h('textarea', {type: 'textarea'}),
+     h('input', {type: 'submit'})
+   ])
+  );
 }
 function renderPost (post) {
-  return h('div', [
-           h('h3', post.title),
-           h('p', post.content)
-         ]);
+  return (
+    h('div', [
+     h('h3', post.title),
+     h('p', post.content)
+   ])
+  );
 }
 
 function renderPosts (posts) {
@@ -45,11 +47,11 @@ function renderPosts (posts) {
 }
 
 function view (post$) {
-  return post$.map(post =>
+  return post$.map(posts =>
     h('div', [
       h('h3', 'Posts'),
       createPostForm(),
-      renderPosts([post])
+      renderPosts(posts)
     ])
   );
 }
