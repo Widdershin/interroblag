@@ -17,7 +17,9 @@ function createPost (ev) {
     title: getValue(ev.target, '.title'),
     content: getValue(ev.target, '.content'),
     dragged: false,
-    id: 1 // TODO - implement id
+    x: 10,
+    y: 10,
+    id: 1 // TODO - implement id,
   };
 };
 
@@ -25,36 +27,47 @@ function getId (container) {
   return $(container).closest('.post-container').find('.post').data('id');
 }
 
+function getMousePosition (ev) {
+  return {
+    x: ev.clientX + document.body.scrollLeft,
+    y: ev.clientY + document.body.scrollTop
+  }
+}
+
 function intent (DOM) {
   return {
     dragPost$: DOM.get('.post-container', 'mousedown').map(ev => getId(ev.target)),
     releaseDrag$: DOM.get('.app', 'mouseup').map(ev => null),
+    mouseMove$: DOM.get('.app', 'mousemove').map(getMousePosition).startWith({x: 0, y: 0}),
 
     post$: DOM.get('.create-post', 'submit').map(createPost)
   };
 }
 
-function model ({dragPost$, releaseDrag$, post$}) {
+function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
     releaseDrag$
   ).startWith(null);
 
   const currentPost$ = post$
-    .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false}])
+    .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false, x: 10, y: 10}])
     .scan((posts, post) => posts.concat([post]))
 
   return Cycle.Rx.Observable.combineLatest(
     draggedPost$,
     currentPost$,
-    (draggedPost, currentPosts) => {
+    mouseMove$,
+    (draggedPost, currentPosts, mousePosition) => {
       return currentPosts.map(post => {
         if (draggedPost === post.id) {
           return {
             title: post.title,
             content: post.content,
             id: post.id,
-            dragged: true
+            dragged: true,
+            x: mousePosition.x,
+            y: mousePosition.y
           }
         };
 
@@ -87,9 +100,9 @@ function renderPost (post) {
 
 function renderSvgPost (post, width = 300, height = 200) {
   return (
-    svg('g', {'class': 'post-container draggable', x: 50, y: 10, width: 300, height: 200, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
-      svg('rect', {width: 300, height: 200}),
-      svg('foreignObject', {width: 300, height: 200}, [
+    svg('g', {'class': 'post-container draggable', x: post.x, y: post.y, width: 300, height: 200, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
+      svg('rect', {x: post.x, y: post.y, width: 300, height: 200}), // it feels like I shouldn't have to do this much typing
+      svg('foreignObject', {x: post.x, y: post.y, width: 300, height: 200}, [
         renderPost(post)
       ])
     ])
