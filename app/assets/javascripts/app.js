@@ -1,7 +1,6 @@
 /* global $ */
 const Cycle = require('@cycle/core');
-const CycleWeb = require('@cycle/web');
-const h = CycleWeb.h;
+const {makeDOMDriver, h, svg} = require('@cycle/web');
 
 function getValue (form, fieldClass) {
   return $(form).find(fieldClass).val();
@@ -35,15 +34,30 @@ function renderCreatePostForm () {
 
 function renderPost (post) {
   return (
-    h('div', [
-     h('h3', post.title),
-     h('p', post.content)
+    h('div.post', [
+     h('h3.title', post.title),
+     h('p.content', post.content)
    ])
   );
 }
 
+function renderSvgPost (post, width = 300, height = 200) {
+  return (
+    svg('g.post-container', {x: 50, y: 10, width: 300, height: 200, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
+      svg('rect', {width: 300, height: 200}),
+      svg('foreignObject', {width: 300, height: 200}, [
+        renderPost(post)
+      ])
+    ])
+  );
+}
+
 function renderPosts (posts) {
-  return posts.map(renderPost);
+  return posts.map(renderSvgPost);
+}
+
+function renderBlogboard (posts) {
+  return svg('svg', {width: 800, height: 600}, renderPosts(posts));
 }
 
 function view (post$) {
@@ -51,7 +65,7 @@ function view (post$) {
     h('div', [
       h('h3', 'Posts'),
       renderCreatePostForm(),
-      renderPosts(posts)
+      renderBlogboard(posts)
     ])
   );
 }
@@ -64,6 +78,6 @@ function main ({DOM}) {
 
 window.startApp = (mountNodeId) => {
   Cycle.run(main, {
-    DOM: CycleWeb.makeDOMDriver(mountNodeId)
+    DOM: makeDOMDriver(mountNodeId)
   });
 };
