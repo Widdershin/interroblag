@@ -1,38 +1,38 @@
+/* global $ */
 const Cycle = require('@cycle/core');
 const CycleWeb = require('@cycle/web');
 const h = CycleWeb.h;
 
-function createPost (ev) {
-  if (ev.content !== undefined) {
-    return ev;
-  }
+function getValue (form, fieldClass) {
+  return $(form).find(fieldClass).val();
+}
 
+function createPost (ev) {
   return {
-    title: ev.target[0].value,
-    content: ev.target[1].value
+    title: getValue(ev.target, '.title'),
+    content: getValue(ev.target, '.content')
   };
 };
 
 function intent (DOM) {
-  return {
-    post$: DOM.get('.create-post', 'submit').map(createPost)
-  };
+  return DOM.get('.create-post', 'submit').map(createPost);
 }
 
-function model ({post$}) {
+function model (post$) {
   return post$.startWith([]).scan((posts, post) => posts.concat([post]));
 }
 
-function createPostForm () {
+function renderCreatePostForm () {
   return (
     h('form.create-post', {action: '#'}, [
      'Create new post',
-     h('input'),
-     h('textarea', {type: 'textarea'}),
+     h('input.title'),
+     h('textarea.content', {type: 'textarea'}),
      h('input', {type: 'submit'})
    ])
   );
 }
+
 function renderPost (post) {
   return (
     h('div', [
@@ -50,14 +50,16 @@ function view (post$) {
   return post$.map(posts =>
     h('div', [
       h('h3', 'Posts'),
-      createPostForm(),
+      renderCreatePostForm(),
       renderPosts(posts)
     ])
   );
 }
 
 function main ({DOM}) {
-  return {DOM: view(model(intent(DOM)))};
+  return {
+    DOM: view(model(intent(DOM)))
+  };
 }
 
 window.startApp = (mountNodeId) => {
