@@ -48,10 +48,11 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
     releaseDrag$
-  ).startWith({})
-   .withLatestFrom(mouseMove$, (latestDraggedPost, mousePosition) => {
+  ).startWith(null);
+
+   const postPosition$ = Cycle.Rx.Observable.combineLatest(draggedPost$, mouseMove$, (latestDraggedPost, mousePosition) => {
      return {latestDraggedPost, mousePosition};
-   }).scan((postPositions, {latestDraggedPost, mousePosition}) => {
+   }).startWith({}).scan((postPositions, {latestDraggedPost, mousePosition}) => {
      if (latestDraggedPost === null) {
        const lastDraggedPost = postPositions.draggedPost;
        return Object.assign(postPositions, {
@@ -79,7 +80,7 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
   }
 
   return Cycle.Rx.Observable.combineLatest(
-    draggedPost$,
+    postPosition$,
     currentPost$,
     (postPositions, posts) => {
       console.log(postPositions);
