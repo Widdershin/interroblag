@@ -48,30 +48,51 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
     releaseDrag$
-  ).startWith(null);
+  ).startWith({})
+   .withLatestFrom(mouseMove$, (latestDraggedPost, mousePosition) => {
+     return {latestDraggedPost, mousePosition};
+   }).scan((postPositions, {latestDraggedPost, mousePosition}) => {
+     if (latestDraggedPost === null) {
+       const lastDraggedPost = postPositions.draggedPost;
+       return Object.assign(postPositions, {
+         draggedPost: null,
+         [lastDraggedPost]: mousePosition
+       });
+     }
+
+     return Object.assign(postPositions, {
+       draggedPost: latestDraggedPost,
+       [latestDraggedPost]: mousePosition
+     });
+   });
 
   const currentPost$ = post$
     .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false, x: 10, y: 10}])
-    .scan((posts, post) => posts.concat([post]))
+    .scan((posts, post) => posts.concat([post]));
+
+  function getPostPosition (positions, post) {
+    if (positions[post.id] !== undefined) {
+      return positions[post.id];
+    } else {
+      return {x: 10, y: 10};
+    }
+  }
 
   return Cycle.Rx.Observable.combineLatest(
     draggedPost$,
     currentPost$,
-    mouseMove$,
-    (draggedPost, currentPosts, mousePosition) => {
-      return currentPosts.map(post => {
-        if (draggedPost === post.id) {
-          return {
-            title: post.title,
-            content: post.content,
-            id: post.id,
-            dragged: true,
-            x: mousePosition.x,
-            y: mousePosition.y
-          }
-        };
-
-        return Object.assign(post, {dragged: false});
+    (postPositions, posts) => {
+      console.log(postPositions);
+      console.log(posts);
+      return posts.map(post => {
+        return {
+          title: post.title,
+          content: post.content,
+          id: post.id,
+          dragged: postPositions.draggedPost === post.id,
+          x: getPostPosition(postPositions, post).x,
+          y: getPostPosition(postPositions, post).y,
+        }
       });
     }
   );
