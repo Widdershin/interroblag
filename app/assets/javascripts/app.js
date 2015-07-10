@@ -28,10 +28,12 @@ function getId (container) {
 }
 
 function getMousePosition (ev) {
-  return {
-    x: ev.clientX + document.body.scrollLeft,
-    y: ev.clientY + document.body.scrollTop
-  }
+  var svg = document.querySelector('svg'); // TODO - this is laughably bad
+  var pt = svg.createSVGPoint();
+  pt.x = ev.clientX + document.body.scrollLeft;
+  pt.y = ev.clientY + document.body.scrollTop;
+
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
 
 function intent (DOM) {
@@ -68,14 +70,14 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
    });
 
   const currentPost$ = post$
-    .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false, x: 10, y: 10}])
+    .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false, x: 300, y: 200}])
     .scan((posts, post) => posts.concat([post]));
 
   function getPostPosition (positions, post) {
     if (positions[post.id] !== undefined) {
       return positions[post.id];
     } else {
-      return {x: 10, y: 10};
+      return {x: 300, y: 200};
     }
   }
 
@@ -83,8 +85,6 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
     postPosition$,
     currentPost$,
     (postPositions, posts) => {
-      console.log(postPositions);
-      console.log(posts);
       return posts.map(post => {
         return {
           title: post.title,
@@ -120,11 +120,16 @@ function renderPost (post) {
   );
 }
 
-function renderSvgPost (post, width = 300, height = 200) {
+function renderSvgPost (post, {width = 300, height = 200}) {
+  let position = {
+    x: post.x - width / 2,
+    y: post.y - height / 2
+  };
+
   return (
-    svg('g', {'class': 'post-container draggable', x: post.x, y: post.y, width: 300, height: 200, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
-      svg('rect', {x: post.x, y: post.y, width: 300, height: 200}), // it feels like I shouldn't have to do this much typing
-      svg('foreignObject', {x: post.x, y: post.y, width: 300, height: 200}, [
+    svg('g', {'class': 'post-container draggable', x: position.x, y: position.y, width: width, height: height, stroke: 'black', fill: 'white', 'stroke-width': '1px'}, [
+      svg('rect', {x: position.x, y: position.y, width: width, height: height}), // it feels like I shouldn't have to do this much typing
+      svg('foreignObject', {x: position.x, y: position.y, width: width, height: height}, [
         renderPost(post)
       ])
     ])
