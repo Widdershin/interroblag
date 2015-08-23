@@ -2,10 +2,14 @@
 const Cycle = require('@cycle/core');
 const {makeDOMDriver, h, svg} = require('@cycle/web');
 
-function log (thing) {
-  console.log(thing);
+const uuid = require('uuid');
 
-  return thing;
+function log (label) {
+  return function (thing) {
+    console.log(label, thing);
+
+    return thing;
+  }
 }
 
 function getValue (form, fieldClass) {
@@ -19,7 +23,7 @@ function createPost (ev) {
     dragged: false,
     x: 10,
     y: 10,
-    id: 1 // TODO - implement id,
+    id: uuid.v4()
   };
 };
 
@@ -42,11 +46,11 @@ function intent (DOM) {
     releaseDrag$: DOM.get('.app', 'mouseup').map(ev => null),
     mouseMove$: DOM.get('.app', 'mousemove').map(getMousePosition).startWith({x: 0, y: 0}),
 
-    post$: DOM.get('.create-post', 'submit').map(createPost)
+    createPost$: DOM.get('.create-post', 'submit').map(createPost)
   };
 }
 
-function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
+function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
     releaseDrag$
@@ -69,7 +73,7 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
      });
    });
 
-  const currentPost$ = post$
+  const currentPost$ = createPost$
     .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false, x: 300, y: 200}])
     .scan((posts, post) => posts.concat([post]));
 
@@ -83,7 +87,7 @@ function model ({dragPost$, releaseDrag$, post$, mouseMove$}) {
 
   return Cycle.Rx.Observable.combineLatest(
     postPosition$,
-    currentPost$,
+    currentPost$.map(log('posts')),
     (postPositions, posts) => {
       return posts.map(post => {
         return {
@@ -141,7 +145,7 @@ function renderPosts (posts) {
 }
 
 function renderBlogboard (posts) {
-  return svg('svg', {width: 800, height: 600}, renderPosts(posts));
+  return svg('svg', {width: '100%', height: '600px'}, renderPosts(posts));
 }
 
 function view (post$) {

@@ -4,7 +4,8 @@
     "@cycle/core": "^1.0.0",
     "@cycle/web": "^1.0.3",
     "browserify": "~> 10.2.4",
-    "browserify-incremental": "^3.0.1"
+    "browserify-incremental": "^3.0.1",
+    "uuid": "^2.0.1"
   },
   "license": "MIT",
   "engines": {
