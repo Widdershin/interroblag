@@ -58,7 +58,17 @@ function fetchServerPosts () {
   }).promise();
 
   return Cycle.Rx.Observable.fromPromise(promise);
-};
+}
+
+function updateServer (posts) {
+  posts.forEach(post => {
+    $.ajax({
+      url: `/posts/${post.id}`,
+      data: {_method: 'PUT', post},
+      method: 'POST'
+    });
+  });
+}
 
 function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
@@ -86,6 +96,7 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
   const serverPost$ = Cycle.Rx.Observable.interval(5000)
     .startWith('go!')
     .flatMapLatest(fetchServerPosts)
+    .map(posts => posts.map(post => Object.assign({x: parseFloat(post.x), y: parseFloat(post.y)}, post)))
     .map(log('serverposts'));
 
   const currentPost$ = Cycle.Rx.Observable.merge(
@@ -98,13 +109,13 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
     if (positions[post.id] !== undefined) {
       return positions[post.id];
     } else {
-      return {x: 300, y: 200};
+      return {x: post.x, y: post.y};
     }
   }
 
-  return Cycle.Rx.Observable.combineLatest(
+  const postWithPosition$ = Cycle.Rx.Observable.combineLatest(
     postPosition$,
-    currentPost$.map(log('posts')),
+    currentPost$,
     (postPositions, posts) => {
       return posts.map(post => {
         return {
@@ -117,7 +128,12 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
         }
       });
     }
-  );
+  ).distinctUntilChanged().map(log('posts'));
+
+  postWithPosition$.sample(Cycle.Rx.Observable.interval(2000))
+    .forEach(updateServer);
+
+  return postWithPosition$;
 }
 
 function renderCreatePostForm () {
