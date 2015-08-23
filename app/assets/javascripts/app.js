@@ -50,6 +50,16 @@ function intent (DOM) {
   };
 }
 
+
+function fetchServerPosts () {
+  const promise = $.ajax({
+    url: '/posts',
+    dataType: 'json'
+  }).promise();
+
+  return Cycle.Rx.Observable.fromPromise(promise);
+};
+
 function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
@@ -73,9 +83,16 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
      });
    });
 
-  const currentPost$ = createPost$
-    .startWith([{title: 'Test Post', content: 'Please ignore', id: 1, dragged: false, x: 300, y: 200}])
-    .scan((posts, post) => posts.concat([post]));
+  const serverPost$ = Cycle.Rx.Observable.interval(5000)
+    .startWith('go!')
+    .flatMapLatest(fetchServerPosts)
+    .map(log('serverposts'));
+
+  const currentPost$ = Cycle.Rx.Observable.merge(
+      createPost$.map(post => [post]),
+      serverPost$.distinctUntilChanged()
+   ).startWith([])
+    .scan((posts, newPosts) => posts.concat(newPosts));
 
   function getPostPosition (positions, post) {
     if (positions[post.id] !== undefined) {
