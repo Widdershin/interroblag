@@ -59,14 +59,13 @@ function fetchServerPosts () {
   };
 }
 
-function updateServer (posts) {
-  posts.forEach(post => {
-    $.ajax({
-      url: `/posts/${post.id}`,
-      data: {_method: 'PUT', post},
-      method: 'POST'
-    });
-  });
+function updateServer (post) {
+  return {
+    url: `/posts/${post.id}`,
+    type: 'JSON',
+    send: {_method: 'PUT', post},
+    method: 'POST'
+  };
 }
 
 function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$}) {
@@ -96,11 +95,16 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$
     .startWith('go!')
     .map(fetchServerPosts);
 
+  httpResponse$
+    .filter(e => e.request.url.startsWith('/post/'))
+    .startWith('wat')
+    .forEach(log('update response'));
+
   const serverPost$ = httpResponse$
     .filter(e => e.request.url === '/posts')
     .mergeAll()
-    .map(response => JSON.parse(response.text))
-    .map(log('serverPosts'));
+    .map(log('http response'))
+    .map(response => JSON.parse(response.text));
 
   const currentPost$ = Cycle.Rx.Observable.merge(
       createPost$.map(post => [post]),
@@ -127,16 +131,24 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$
           id: post.id,
           dragged: postPositions.draggedPost === post.id,
           x: getPostPosition(postPositions, post).x,
-          y: getPostPosition(postPositions, post).y,
-        }
+          y: getPostPosition(postPositions, post).y
+        };
       });
     }
   ).distinctUntilChanged().map(log('posts'));
 
-  postWithPosition$.sample(Cycle.Rx.Observable.interval(2000))
-    .forEach(updateServer);
+  const updatePost$ = postWithPosition$.sample(Cycle.Rx.Observable.interval(2000))
+    .debounce(100)
+    .flatMap(posts => (
+      Cycle.Rx.Observable.from(posts).groupBy(post => post.id)
+        .distinctUntilChanged()
+        .mergeAll()
+        .map(updateServer)
+      )
+    );
 
-  const httpRequest$ = fetchServerPost$;
+  const httpRequest$ = updatePost$.merge(fetchServerPost$)
+    .map(log('http request'));
 
   return {post$: postWithPosition$, httpRequest$};
 }
