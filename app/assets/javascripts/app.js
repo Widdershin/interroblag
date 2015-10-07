@@ -62,9 +62,9 @@ function fetchServerPosts () {
 function updateServer (post) {
   return {
     url: `/posts/${post.id}`,
-    type: 'JSON',
+    type: 'application/json',
     send: {_method: 'PUT', post},
-    method: 'POST'
+    method: 'PUT'
   };
 }
 
@@ -95,10 +95,7 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$
     .startWith('go!')
     .map(fetchServerPosts);
 
-  httpResponse$
-    .filter(e => e.request.url.startsWith('/post/'))
-    .startWith('wat')
-    .forEach(log('update response'));
+  httpResponse$.mergeAll().forEach(log('update response'));
 
   const serverPost$ = httpResponse$
     .filter(e => e.request.url === '/posts')
