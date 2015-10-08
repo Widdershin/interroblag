@@ -1,10 +1,12 @@
 {
   "name": "interroblag",
   "dependencies": {
-    "@cycle/core": "^1.0.0",
-    "@cycle/web": "^1.0.3",
+    "@cycle/core": "^3.1.0",
+    "@cycle/dom": "^5.3.1",
+    "@cycle/http": "^4.0.0",
     "browserify": "~> 10.2.4",
     "browserify-incremental": "^3.0.1",
+    "cycle-time-travel": "^0.1.2",
     "uuid": "^2.0.1"
   },
   "license": "MIT",

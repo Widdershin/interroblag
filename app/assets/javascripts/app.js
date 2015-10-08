@@ -1,6 +1,9 @@
 /* global $ */
 const Cycle = require('@cycle/core');
-const {makeDOMDriver, h, svg} = require('@cycle/web');
+const {makeDOMDriver, h, svg} = require('@cycle/dom');
+const {makeHTTPDriver} = require('@cycle/http');
+
+Cycle.Rx.config.longStackSupport = true;
 
 const uuid = require('uuid');
 
@@ -40,64 +43,67 @@ function getMousePosition (ev) {
   return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
 
-function intent (DOM) {
+function intent ({DOM, HTTP}) {
   return {
     dragPost$: DOM.get('.post-container', 'mousedown').map(ev => getId(ev.target)),
     releaseDrag$: DOM.get('.app', 'mouseup').map(ev => null),
     mouseMove$: DOM.get('.app', 'mousemove').map(getMousePosition).startWith({x: 0, y: 0}),
 
-    createPost$: DOM.get('.create-post', 'submit').map(createPost)
+    createPost$: DOM.get('.create-post', 'submit').map(createPost),
+    httpResponse$: HTTP
   };
 }
 
-
 function fetchServerPosts () {
-  const promise = $.ajax({
+  return {
     url: '/posts',
-    dataType: 'json'
-  }).promise();
-
-  return Cycle.Rx.Observable.fromPromise(promise);
+    accept: 'application/json'
+  };
 }
 
-function updateServer (posts) {
-  posts.forEach(post => {
-    $.ajax({
-      url: `/posts/${post.id}`,
-      data: {_method: 'PUT', post},
-      method: 'POST'
-    });
-  });
+function updateServer (post) {
+  return {
+    url: `/posts/${post.id}`,
+    type: 'application/json',
+    send: {_method: 'PUT', post},
+    method: 'PUT'
+  };
 }
 
-function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
+function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$}) {
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
     releaseDrag$
   ).startWith(null);
 
-   const postPosition$ = Cycle.Rx.Observable.combineLatest(draggedPost$, mouseMove$, (latestDraggedPost, mousePosition) => {
-     return {latestDraggedPost, mousePosition};
-   }).startWith({}).scan((postPositions, {latestDraggedPost, mousePosition}) => {
-     if (latestDraggedPost === null) {
-       const lastDraggedPost = postPositions.draggedPost;
-       return Object.assign(postPositions, {
-         draggedPost: null,
-         [lastDraggedPost]: mousePosition
-       });
-     }
+  const postPosition$ = Cycle.Rx.Observable.combineLatest(draggedPost$, mouseMove$, (latestDraggedPost, mousePosition) => {
+    return {latestDraggedPost, mousePosition};
+  }).startWith({}).scan((postPositions, {latestDraggedPost, mousePosition}) => {
+    if (latestDraggedPost === null) {
+      const lastDraggedPost = postPositions.draggedPost;
+      return Object.assign(postPositions, {
+        draggedPost: null,
+        [lastDraggedPost]: mousePosition
+      });
+    }
 
-     return Object.assign(postPositions, {
-       draggedPost: latestDraggedPost,
-       [latestDraggedPost]: mousePosition
-     });
-   });
+    return Object.assign(postPositions, {
+      draggedPost: latestDraggedPost,
+      [latestDraggedPost]: mousePosition
+    });
+  });
 
-  const serverPost$ = Cycle.Rx.Observable.interval(5000)
+  const fetchServerPost$ = Cycle.Rx.Observable.interval(5000)
     .startWith('go!')
-    .flatMapLatest(fetchServerPosts)
-    .map(posts => posts.map(post => Object.assign({x: parseFloat(post.x), y: parseFloat(post.y)}, post)))
-    .map(log('serverposts'));
+    .map(fetchServerPosts);
+
+  httpResponse$.mergeAll().forEach(log('update response'));
+
+  const serverPost$ = httpResponse$
+    .filter(e => e.request.url === '/posts')
+    .mergeAll()
+    .map(log('http response'))
+    .map(response => JSON.parse(response.text));
 
   const currentPost$ = Cycle.Rx.Observable.merge(
       createPost$.map(post => [post]),
@@ -124,16 +130,26 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$}) {
           id: post.id,
           dragged: postPositions.draggedPost === post.id,
           x: getPostPosition(postPositions, post).x,
-          y: getPostPosition(postPositions, post).y,
-        }
+          y: getPostPosition(postPositions, post).y
+        };
       });
     }
   ).distinctUntilChanged().map(log('posts'));
 
-  postWithPosition$.sample(Cycle.Rx.Observable.interval(2000))
-    .forEach(updateServer);
+  const updatePost$ = postWithPosition$
+    .debounce(100)
+    .flatMap(posts => posts)
+    .groupBy(post => post.id)
+    .flatMap(
+      groupedPosts => groupedPosts.distinctUntilChanged(JSON.stringify),
+      (_, post) => Cycle.Rx.Observable.just(updateServer(post))
+    )
+    .mergeAll();
 
-  return postWithPosition$;
+  const httpRequest$ = updatePost$.merge(fetchServerPost$)
+    .map(log('http request'));
+
+  return {post$: postWithPosition$, httpRequest$};
 }
 
 function renderCreatePostForm () {
@@ -181,24 +197,27 @@ function renderBlogboard (posts) {
   return svg('svg', {width: '100%', height: '600px'}, renderPosts(posts));
 }
 
-function view (post$) {
-  return post$.map(posts =>
-    h('div.app', [
-      h('h3', 'Posts'),
-      renderCreatePostForm(),
-      renderBlogboard(posts)
-    ])
-  );
+function view ({post$, httpRequest$}) {
+  return {
+    DOM: post$.map(posts =>
+      h('div.app', [
+        h('h3', 'Posts'),
+        renderCreatePostForm(),
+        renderBlogboard(posts)
+      ])
+    ),
+
+    HTTP: httpRequest$
+  };
 }
 
-function main ({DOM}) {
-  return {
-    DOM: view(model(intent(DOM)))
-  };
+function main (responses) {
+  return view(model(intent(responses)));
 }
 
 window.startApp = (mountNodeId) => {
   Cycle.run(main, {
-    DOM: makeDOMDriver(mountNodeId)
+    DOM: makeDOMDriver(mountNodeId),
+    HTTP: makeHTTPDriver()
   });
 };
