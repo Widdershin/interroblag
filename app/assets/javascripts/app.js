@@ -45,11 +45,13 @@ function getMousePosition (ev) {
 
 function intent ({DOM, HTTP}) {
   return {
-    dragPost$: DOM.get('.post-container', 'mousedown').map(ev => getId(ev.target)),
-    releaseDrag$: DOM.get('.app', 'mouseup').map(ev => null),
-    mouseMove$: DOM.get('.app', 'mousemove').map(getMousePosition).startWith({x: 0, y: 0}),
+    grab$: DOM.select('.app').events('mousedown').map(ev => getId(ev.target)),
+    releaseDrag$: DOM.select('.app').events('mouseup').map(ev => null),
+    mouseMove$: DOM.select('.app').events('mousemove').map(getMousePosition).startWith({x: 0, y: 0}),
 
-    createPost$: DOM.get('.create-post', 'submit').map(createPost),
+    dragPost$: DOM.select('.post-container').events('mousedown').map(ev => getId(ev.target)),
+
+    createPost$: DOM.select('.create-post').events('submit').map(createPost),
     httpResponse$: HTTP
   };
 }
@@ -70,7 +72,12 @@ function updateServer (post) {
   };
 }
 
-function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$}) {
+function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$, grab$}) {
+  const panning$ = Cycle.Rx.Observable.merge(
+    grab$.map(_ => true),
+    releaseDrag$.map(_ => false)
+  ).startWith(false);
+
   const draggedPost$ = Cycle.Rx.Observable.merge(
     dragPost$,
     releaseDrag$
@@ -141,7 +148,7 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$
     .flatMap(posts => posts)
     .groupBy(post => post.id)
     .flatMap(
-      groupedPosts => groupedPosts.distinctUntilChanged(JSON.stringify),
+      post$ => post$.distinctUntilChanged(JSON.stringify),
       (_, post) => Cycle.Rx.Observable.just(updateServer(post))
     )
     .mergeAll();
@@ -149,7 +156,7 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$
   const httpRequest$ = updatePost$.merge(fetchServerPost$)
     .map(log('http request'));
 
-  return {post$: postWithPosition$, httpRequest$};
+  return {post$: postWithPosition$, httpRequest$, panning$};
 }
 
 function renderCreatePostForm () {
@@ -197,15 +204,19 @@ function renderBlogboard (posts) {
   return svg('svg', {width: '100%', height: '600px'}, renderPosts(posts));
 }
 
-function view ({post$, httpRequest$}) {
+function view ({post$, httpRequest$, panning$}) {
   return {
-    DOM: post$.map(posts =>
-      h('div.app', [
-        h('h3', 'Posts'),
-        renderCreatePostForm(),
-        renderBlogboard(posts)
-      ])
-    ),
+    DOM: Cycle.Rx.Observable.combineLatest(post$, panning$, (posts, currentlyPanning) => {
+      let extraAppClasses = currentlyPanning ? '.app-clicked' : '';
+
+      return (
+        h(`div.app${extraAppClasses}`, [
+          h('h3', 'Posts'),
+          renderCreatePostForm(),
+          renderBlogboard(posts)
+        ])
+      )
+    }),
 
     HTTP: httpRequest$
   };
