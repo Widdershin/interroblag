@@ -3,6 +3,8 @@ const Cycle = require('@cycle/core');
 const {makeDOMDriver, h, svg} = require('@cycle/dom');
 const {makeHTTPDriver} = require('@cycle/http');
 
+Cycle.Rx.config.longStackSupport = true;
+
 const uuid = require('uuid');
 
 function log (label) {
@@ -134,15 +136,15 @@ function model ({dragPost$, releaseDrag$, createPost$, mouseMove$, httpResponse$
     }
   ).distinctUntilChanged().map(log('posts'));
 
-  const updatePost$ = postWithPosition$.sample(Cycle.Rx.Observable.interval(2000))
+  const updatePost$ = postWithPosition$
     .debounce(100)
-    .flatMap(posts => (
-      Cycle.Rx.Observable.from(posts).groupBy(post => post.id)
-        .distinctUntilChanged()
-        .mergeAll()
-        .map(updateServer)
-      )
-    );
+    .flatMap(posts => posts)
+    .groupBy(post => post.id)
+    .flatMap(
+      groupedPosts => groupedPosts.distinctUntilChanged(JSON.stringify),
+      (_, post) => Cycle.Rx.Observable.just(updateServer(post))
+    )
+    .mergeAll();
 
   const httpRequest$ = updatePost$.merge(fetchServerPost$)
     .map(log('http request'));
